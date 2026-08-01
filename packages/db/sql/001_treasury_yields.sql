@@ -1,0 +1,19 @@
+CREATE TABLE IF NOT EXISTS treasury_yields (
+  rate_date DATE NOT NULL,
+  y_1_mo DECIMAL(6, 2) NULL,
+  y_1_5_mo DECIMAL(6, 2) NULL,
+  y_2_mo DECIMAL(6, 2) NULL,
+  y_3_mo DECIMAL(6, 2) NULL,
+  y_4_mo DECIMAL(6, 2) NULL,
+  y_6_mo DECIMAL(6, 2) NULL,
+  y_1_yr DECIMAL(6, 2) NULL,
+  y_2_yr DECIMAL(6, 2) NULL,
+  y_3_yr DECIMAL(6, 2) NULL,
+  y_5_yr DECIMAL(6, 2) NULL,
+  y_7_yr DECIMAL(6, 2) NULL,
+  y_10_yr DECIMAL(6, 2) NULL,
+  y_20_yr DECIMAL(6, 2) NULL,
+  y_30_yr DECIMAL(6, 2) NULL,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (rate_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

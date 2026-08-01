@@ -1,0 +1,18 @@
+{
+  "name": "@tsy/ingest",
+  "version": "1.0.0",
+  "private": true,
+  "type": "commonjs",
+  "main": "src/index.js",
+  "scripts": {
+    "seed": "node src/seed.js",
+    "sync": "node src/sync.js",
+    "start": "node src/sync.js"
+  },
+  "dependencies": {
+    "@tsy/db": "1.0.0",
+    "csv-parse": "^6.1.0",
+    "dotenv": "^16.6.1",
+    "fast-xml-parser": "^5.2.5"
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "name": "tsy-microsvc",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Treasury yield ingest + REST microservice",
+  "keywords": [
+    "treasury",
+    "nodejs"
+  ],
+  "homepage": "https://github.com/longhorn09/tsy-microsvc#readme",
+  "bugs": {
+    "url": "https://github.com/longhorn09/tsy-microsvc/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/longhorn09/tsy-microsvc.git"
+  },
+  "license": "ISC",
+  "author": "Norman Tang",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "start": "npm run start -w @tsy/api",
+    "api": "npm run start -w @tsy/api",
+    "ingest:seed": "npm run seed -w @tsy/ingest",
+    "ingest:sync": "npm run sync -w @tsy/ingest",
+    "db:migrate": "npm run migrate -w @tsy/db"
+  }
+}

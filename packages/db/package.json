@@ -1,0 +1,14 @@
+{
+  "name": "@tsy/db",
+  "version": "1.0.0",
+  "private": true,
+  "type": "commonjs",
+  "main": "src/index.js",
+  "scripts": {
+    "migrate": "node src/migrate.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.6.1",
+    "mysql2": "^3.14.3"
+  }
+}
