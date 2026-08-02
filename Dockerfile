@@ -1,4 +1,4 @@
-#FROM node:22-slim
+#FROM node:24-slim
 FROM node:lts-slim
 
 WORKDIR /tsy-microsvc
@@ -16,4 +16,6 @@ COPY packages/db ./packages/db
 ENV NODE_ENV=production
 EXPOSE 8080
 
-CMD ["npm", "run", "start", "-w", "@tsy/api"]
+# npm as PID 1 does not forward SIGTERM reliably on Cloud Run
+# CMD ["npm", "run", "start", "-w", "@tsy/api"]
+CMD ["node", "apps/api/src/index.js"]
