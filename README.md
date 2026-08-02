@@ -81,9 +81,106 @@ apps/api/        Express REST service
 packages/db/     MySQL schema + shared access
 ```
 
-## GCP (next)
+## Deploy API to Cloud Run
 
-- **Cloud SQL (MySQL)** — database  
+These steps deploy `apps/api` as a Cloud Run service using `@google-cloud/cloud-sql-connector` (set `INSTANCE_CONNECTION_NAME` + `DB_IP_TYPE=PUBLIC`). Replace `PROJECT_ID`, `REGION`, and the connection name with your values.
+
+### 0. Prerequisites (one-time)
+
+```bash
+gcloud config set project PROJECT_ID
+
+gcloud services enable \
+  run.googleapis.com \
+  artifactregistry.googleapis.com \
+  secretmanager.googleapis.com \
+  sqladmin.googleapis.com \
+  cloudbuild.googleapis.com
+```
+
+Confirm auth: `gcloud auth list`
+
+### 1. Container files
+
+The repo includes a root `Dockerfile` and `.dockerignore`. Do not bake `.env` into the image; Cloud Run injects env vars and secrets.
+
+### 2. Service account
+
+```bash
+gcloud iam service-accounts create tsy-api-runner \
+  --display-name="Treasury Yields API Cloud Run"
+
+gcloud projects add-iam-policy-binding PROJECT_ID \
+  --member="serviceAccount:tsy-api-runner@PROJECT_ID.iam.gserviceaccount.com" \
+  --role="roles/cloudsql.client"
+
+gcloud projects add-iam-policy-binding PROJECT_ID \
+  --member="serviceAccount:tsy-api-runner@PROJECT_ID.iam.gserviceaccount.com" \
+  --role="roles/secretmanager.secretAccessor"
+```
+
+### 3. DB secrets in Secret Manager
+
+Run from the project root (where `.env` lives). These pipe values from `.env` into Secret Manager:
+
+```bash
+# For DB_USER
+grep '^DB_USER=' .env | cut -d'=' -f2- | tr -d '\r\n' | gcloud secrets create tsy-db-user --data-file=-
+
+# For DB_PASSWORD
+grep '^DB_PASSWORD=' .env | cut -d'=' -f2- | tr -d '\r\n' | gcloud secrets create tsy-db-password --data-file=-
+
+# For DB_NAME
+grep '^DB_NAME=' .env | cut -d'=' -f2- | tr -d '\r\n' | gcloud secrets create tsy-db-name --data-file=-
+```
+
+To update an existing secret later:
+
+```bash
+grep '^DB_PASSWORD=' .env | cut -d'=' -f2- | tr -d '\r\n' | gcloud secrets versions add tsy-db-password --data-file=-
+```
+
+### 4. Deploy
+
+From the repo root:
+
+```bash
+gcloud run deploy tsy-api \
+  --source . \
+  --region REGION \
+  --service-account tsy-api-runner@PROJECT_ID.iam.gserviceaccount.com \
+  --allow-unauthenticated \
+  --set-env-vars "INSTANCE_CONNECTION_NAME=PROJECT_ID:REGION:INSTANCE_NAME,DB_IP_TYPE=PUBLIC,HOST=0.0.0.0" \
+  --set-secrets "DB_USER=tsy-db-user:latest,DB_PASSWORD=tsy-db-password:latest,DB_NAME=tsy-db-name:latest" \
+  --cpu 1 \
+  --memory 512Mi \
+  --min-instances 0 \
+  --max-instances 3
+```
+
+Cloud Run sets `PORT` (usually `8080`); the API already reads `process.env.PORT`. With the connector and `PUBLIC` IP, you do not need `--add-cloudsql-instances` or authorized networks for this path.
+
+### 5. Verify
+
+```bash
+gcloud run services describe tsy-api --region REGION --format='value(status.url)'
+
+curl -s "$(gcloud run services describe tsy-api --region REGION --format='value(status.url)')/health"
+
+curl -s "$(gcloud run services describe tsy-api --region REGION --format='value(status.url)')/v1/yields/latest"
+
+curl -s "$(gcloud run services describe tsy-api --region REGION --format='value(status.url)')/v1/yields?from=2026-07-01&to=2026-07-31"
+```
+
+Logs:
+
+```bash
+gcloud run services logs read tsy-api --region REGION --limit 50
+```
+
+You should see a line like: `Using Cloud SQL connector (PUBLIC) for PROJECT_ID:REGION:INSTANCE_NAME`
+
+### Still separate (not covered here)
+
 - **Cloud Run Job** — `npm run ingest:sync`  
-- **Cloud Scheduler** — daily cron triggering the job  
-- **Cloud Run service** — `npm start` for the API  
+- **Cloud Scheduler** — daily cron triggering that job  
