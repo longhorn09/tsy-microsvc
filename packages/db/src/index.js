@@ -1,7 +1,13 @@
 'use strict';
 
-const { getDbConfig } = require('./config');
-const { getPool, closePool } = require('./pool');
+const {
+  getDbConfig,
+  getDbCredentials,
+  useCloudSqlConnector,
+  getInstanceConnectionName,
+  getDbIpType,
+} = require('./config');
+const { getPool, initPool, closePool } = require('./pool');
 const {
   TENOR_COLUMNS,
   upsertYields,
@@ -14,7 +20,12 @@ const { migrate } = require('./migrate');
 
 module.exports = {
   getDbConfig,
+  getDbCredentials,
+  useCloudSqlConnector,
+  getInstanceConnectionName,
+  getDbIpType,
   getPool,
+  initPool,
   closePool,
   TENOR_COLUMNS,
   upsertYields,

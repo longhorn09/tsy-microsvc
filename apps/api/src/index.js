@@ -7,38 +7,47 @@ require('dotenv').config({
 });
 
 const express = require('express');
-const { closePool } = require('@tsy/db');
+const { initPool, closePool } = require('@tsy/db');
 const yieldsRouter = require('./routes/yields');
 
-const app = express();
-const port = Number(process.env.PORT || 3000);
-const host = process.env.HOST || '0.0.0.0';
+async function main() {
+  await initPool();
 
-app.disable('x-powered-by');
-app.use(express.json());
+  const app = express();
+  const port = Number(process.env.PORT || 3000);
+  const host = process.env.HOST || '0.0.0.0';
 
-app.get('/health', (_req, res) => {
-  res.json({ status: 'ok' });
-});
+  app.disable('x-powered-by');
+  app.use(express.json());
 
-app.use('/v1/yields', yieldsRouter);
-
-app.use((err, _req, res, _next) => {
-  console.error(err);
-  res.status(500).json({ error: 'Internal server error' });
-});
-
-const server = app.listen(port, host, () => {
-  console.log(`Treasury yields API listening on http://${host}:${port}`);
-});
-
-async function shutdown(signal) {
-  console.log(`Received ${signal}, shutting down...`);
-  server.close(async () => {
-    await closePool();
-    process.exit(0);
+  app.get('/health', (_req, res) => {
+    res.json({ status: 'ok' });
   });
+
+  app.use('/v1/yields', yieldsRouter);
+
+  app.use((err, _req, res, _next) => {
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
+  });
+
+  const server = app.listen(port, host, () => {
+    console.log(`Treasury yields API listening on http://${host}:${port}`);
+  });
+
+  async function shutdown(signal) {
+    console.log(`Received ${signal}, shutting down...`);
+    server.close(async () => {
+      await closePool();
+      process.exit(0);
+    });
+  }
+
+  process.on('SIGINT', () => shutdown('SIGINT'));
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
 }
 
-process.on('SIGINT', () => shutdown('SIGINT'));
-process.on('SIGTERM', () => shutdown('SIGTERM'));
+main().catch((err) => {
+  console.error('Failed to start API:', err);
+  process.exit(1);
+});

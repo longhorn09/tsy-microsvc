@@ -18,7 +18,7 @@ async function seed() {
   const rows = dedupeByDate([...archiveRows, ...xmlRows]);
 
   console.log(`Upserting ${rows.length} total rows into Cloud SQL / MySQL...`);
-  const pool = getPool();
+  const pool = await getPool();
   const { upserted } = await upsertYields(pool, rows);
   console.log(`Seed complete. Upserted ${upserted} rows.`);
 }

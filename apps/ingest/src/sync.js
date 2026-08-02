@@ -44,7 +44,7 @@ async function sync() {
   const rows = filterByDateRange(yearRows, fromDate, toDate);
 
   console.log(`Upserting ${rows.length} rows...`);
-  const pool = getPool();
+  const pool = await getPool();
   const { upserted } = await upsertYields(pool, rows);
   console.log(`Sync complete. Upserted ${upserted} rows.`);
 }
