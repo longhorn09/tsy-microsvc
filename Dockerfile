@@ -13,6 +13,8 @@ RUN npm ci --omit=dev
 
 # copy the actual source code
 COPY apps/api ./apps/api
+# need this for the synch service
+COPY apps/ingest ./apps/ingest  
 COPY packages/db ./packages/db
 
 ENV NODE_ENV=production
