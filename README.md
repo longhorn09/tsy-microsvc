@@ -180,7 +180,18 @@ gcloud run services logs read tsy-api --region REGION --limit 50
 
 You should see a line like: `Using Cloud SQL connector (PUBLIC) for PROJECT_ID:REGION:INSTANCE_NAME`
 
-### Still separate (not covered here)
+### Keep `tsy-sync` Job on the same image as `tsy-api`
 
-- **Cloud Run Job** — `npm run ingest:sync`  
-- **Cloud Scheduler** — daily cron triggering that job  
+Cloud Run pins an image digest when a Service/Job is updated. The original console trigger only redeployed `tsy-api`. Repo root [`cloudbuild.yaml`](cloudbuild.yaml) builds once, updates the API service, then updates Job `tsy-sync` to the same `$COMMIT_SHA` image (Job command/env/secrets are left alone).
+
+One-time: point the existing GitHub → `main` trigger at that file (export → set `filename: cloudbuild.yaml` → import), e.g.:
+
+```bash
+gcloud beta builds triggers export 4feca7dd-13c6-461b-b80f-a24e1d34dac3 \
+  --project=lorebot-prd \
+  --destination=/tmp/tsy-trigger.yaml
+# edit /tmp/tsy-trigger.yaml: remove inline `build:`, add `filename: cloudbuild.yaml`
+gcloud builds triggers import --source=/tmp/tsy-trigger.yaml --project=lorebot-prd
+```
+
+Commit `cloudbuild.yaml` to `main` before or with the first push after that change. Cloud Scheduler does not need updates — it only invokes the Job.
