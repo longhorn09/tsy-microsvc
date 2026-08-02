@@ -1,15 +1,17 @@
-#FROM node:24-slim
 FROM node:lts-slim
 
 WORKDIR /tsy-microsvc
 
+# check for package.json changes first, if none then skip the npm ci
 COPY package.json package-lock.json ./
 COPY apps/api/package.json ./apps/api/
 COPY apps/ingest/package.json ./apps/ingest/
 COPY packages/db/package.json ./packages/db/
 
+# note: ci means clean install
 RUN npm ci --omit=dev
 
+# copy the actual source code
 COPY apps/api ./apps/api
 COPY packages/db ./packages/db
 
