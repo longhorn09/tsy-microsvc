@@ -1,10 +1,7 @@
 #FROM node:22-slim
 FROM node:lts-slim
 
-
-#WORKDIR /app
 WORKDIR /tsy-microsvc
-
 
 COPY package.json package-lock.json ./
 COPY apps/api/package.json ./apps/api/
