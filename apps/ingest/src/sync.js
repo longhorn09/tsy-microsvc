@@ -1,7 +1,10 @@
 'use strict';
 
 const path = require('path');
-require('dotenv').config({ path: path.resolve(__dirname, '../../../.env') });
+require('dotenv').config({
+  path: path.resolve(__dirname, '../../../.env'),
+  quiet: true,
+});
 
 const { getPool, closePool, upsertYields } = require('@tsy/db');
 const { fetchXmlYears } = require('./treasury/fetch');
