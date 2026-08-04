@@ -24,8 +24,8 @@
   "scripts": {
     "start": "npm run start -w @tsy/api",
     "api": "npm run start -w @tsy/api",
-    "ingest:seed": "npm run seed -w @tsy/ingest",
-    "ingest:sync": "npm run sync -w @tsy/ingest",
-    "db:migrate": "npm run migrate -w @tsy/db"
+    "ingest:seed": "npm run seed -w @tsy/ingest --",
+    "ingest:sync": "npm run sync -w @tsy/ingest --",
+    "db:migrate": "npm run migrate -w @tsy/db --"
   }
 }

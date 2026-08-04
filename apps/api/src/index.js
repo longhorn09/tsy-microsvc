@@ -7,11 +7,11 @@ require('dotenv').config({
 });
 
 const express = require('express');
-const { initPool, closePool } = require('@tsy/db');
+const { initDb, closeDb } = require('@tsy/db');
 const yieldsRouter = require('./routes/yields');
 
 async function main() {
-  await initPool();
+  initDb();
 
   const app = express();
   const port = Number(process.env.PORT || 3000);
@@ -38,7 +38,7 @@ async function main() {
   async function shutdown(signal) {
     console.log(`Received ${signal}, shutting down...`);
     server.close(async () => {
-      await closePool();
+      await closeDb();
       process.exit(0);
     });
   }

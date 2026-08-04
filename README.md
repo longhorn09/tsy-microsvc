@@ -2,16 +2,16 @@
 
 Node.js monorepo for US Treasury par yield curve data:
 
-1. **`apps/ingest`** — seed Cloud SQL MySQL from Treasury archive CSVs (1990+) and run a daily upsert of the last N days  
+1. **`apps/ingest`** — seed Neon Postgres from Treasury archive CSVs (1990+) and run a daily upsert of the last N days  
 2. **`apps/api`** — REST JSON microservice that serves yields to other apps  
-3. **`packages/db`** — shared MySQL schema, migrations, and query helpers  
+3. **`packages/db`** — shared Drizzle schema, migrations, and query helpers for Neon Postgres  
 
 ## Setup
 
 ```bash
 npm install
 cp .env.example .env
-# edit .env with your MySQL / Cloud SQL credentials
+# set DATABASE_URL to your Neon connection string (use the -pooler host)
 npm run db:migrate
 ```
 
@@ -78,12 +78,12 @@ Example response:
 ```text
 apps/ingest/     seed + daily sync job
 apps/api/        Express REST service
-packages/db/     MySQL schema + shared access
+packages/db/     Drizzle schema + Neon Postgres access
 ```
 
 ## Deploy API to Cloud Run
 
-These steps deploy `apps/api` as a Cloud Run service using `@google-cloud/cloud-sql-connector` (set `INSTANCE_CONNECTION_NAME` + `DB_IP_TYPE=PUBLIC`). Replace `PROJECT_ID`, `REGION`, and the connection name with your values.
+These steps deploy `apps/api` as a Cloud Run service using `DATABASE_URL` for Neon. Replace `PROJECT_ID` and `REGION` with your values.
 
 ### 0. Prerequisites (one-time)
 
@@ -94,7 +94,6 @@ gcloud services enable \
   run.googleapis.com \
   artifactregistry.googleapis.com \
   secretmanager.googleapis.com \
-  sqladmin.googleapis.com \
   cloudbuild.googleapis.com
 ```
 
@@ -112,32 +111,21 @@ gcloud iam service-accounts create tsy-api-runner \
 
 gcloud projects add-iam-policy-binding PROJECT_ID \
   --member="serviceAccount:tsy-api-runner@PROJECT_ID.iam.gserviceaccount.com" \
-  --role="roles/cloudsql.client"
-
-gcloud projects add-iam-policy-binding PROJECT_ID \
-  --member="serviceAccount:tsy-api-runner@PROJECT_ID.iam.gserviceaccount.com" \
   --role="roles/secretmanager.secretAccessor"
 ```
 
-### 3. DB secrets in Secret Manager
+### 3. DB secret in Secret Manager
 
-Run from the project root (where `.env` lives). These pipe values from `.env` into Secret Manager:
+Store the Neon pooled connection string from `.env`:
 
 ```bash
-# For DB_USER
-grep '^DB_USER=' .env | cut -d'=' -f2- | tr -d '\r\n' | gcloud secrets create tsy-db-user --data-file=-
-
-# For DB_PASSWORD
-grep '^DB_PASSWORD=' .env | cut -d'=' -f2- | tr -d '\r\n' | gcloud secrets create tsy-db-password --data-file=-
-
-# For DB_NAME
-grep '^DB_NAME=' .env | cut -d'=' -f2- | tr -d '\r\n' | gcloud secrets create tsy-db-name --data-file=-
+grep '^DATABASE_URL=' .env | cut -d'=' -f2- | tr -d '\r\n' | gcloud secrets create tsy-database-url --data-file=-
 ```
 
 To update an existing secret later:
 
 ```bash
-grep '^DB_PASSWORD=' .env | cut -d'=' -f2- | tr -d '\r\n' | gcloud secrets versions add tsy-db-password --data-file=-
+grep '^DATABASE_URL=' .env | cut -d'=' -f2- | tr -d '\r\n' | gcloud secrets versions add tsy-database-url --data-file=-
 ```
 
 ### 4. Deploy
@@ -150,15 +138,15 @@ gcloud run deploy tsy-api \
   --region REGION \
   --service-account tsy-api-runner@PROJECT_ID.iam.gserviceaccount.com \
   --allow-unauthenticated \
-  --set-env-vars "INSTANCE_CONNECTION_NAME=PROJECT_ID:REGION:INSTANCE_NAME,DB_IP_TYPE=PUBLIC,HOST=0.0.0.0" \
-  --set-secrets "DB_USER=tsy-db-user:latest,DB_PASSWORD=tsy-db-password:latest,DB_NAME=tsy-db-name:latest" \
+  --set-env-vars "HOST=0.0.0.0" \
+  --set-secrets "DATABASE_URL=tsy-database-url:latest" \
   --cpu 1 \
   --memory 512Mi \
   --min-instances 0 \
   --max-instances 3
 ```
 
-Cloud Run sets `PORT` (usually `8080`); the API already reads `process.env.PORT`. With the connector and `PUBLIC` IP, you do not need `--add-cloudsql-instances` or authorized networks for this path.
+Cloud Run sets `PORT` (usually `8080`); the API already reads `process.env.PORT`.
 
 ### 5. Verify
 
@@ -178,7 +166,7 @@ Logs:
 gcloud run services logs read tsy-api --region REGION --limit 50
 ```
 
-You should see a line like: `Using Cloud SQL connector (PUBLIC) for PROJECT_ID:REGION:INSTANCE_NAME`
+Update the `tsy-sync` Cloud Run Job the same way: set/replace secrets so it receives `DATABASE_URL` (and remove the old Cloud SQL `DB_*` / `INSTANCE_CONNECTION_NAME` vars).
 
 ### Keep `tsy-sync` Job on the same image as `tsy-api`
 

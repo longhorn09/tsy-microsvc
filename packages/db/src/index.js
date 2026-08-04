@@ -1,13 +1,7 @@
 'use strict';
 
-const {
-  getDbConfig,
-  getDbCredentials,
-  useCloudSqlConnector,
-  getInstanceConnectionName,
-  getDbIpType,
-} = require('./config');
-const { getPool, initPool, closePool } = require('./pool');
+const { getDatabaseUrl } = require('./config');
+const { getDb, initDb, closeDb } = require('./client');
 const {
   TENOR_COLUMNS,
   upsertYields,
@@ -16,18 +10,20 @@ const {
   getYieldsInRange,
   toApiYield,
 } = require('./yields');
+const { treasuryYields } = require('./schema');
 const { migrate } = require('./migrate');
 
 module.exports = {
-  getDbConfig,
-  getDbCredentials,
-  useCloudSqlConnector,
-  getInstanceConnectionName,
-  getDbIpType,
-  getPool,
-  initPool,
-  closePool,
+  getDatabaseUrl,
+  getDb,
+  initDb,
+  closeDb,
+  // Back-compat aliases used by older call sites during transition
+  getPool: getDb,
+  initPool: initDb,
+  closePool: closeDb,
   TENOR_COLUMNS,
+  treasuryYields,
   upsertYields,
   getLatestYield,
   getYieldByDate,
