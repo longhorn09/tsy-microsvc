@@ -1,118 +1,135 @@
 'use strict';
 
-const TENOR_COLUMNS = [
-  'y_1_mo',
-  'y_1_5_mo',
-  'y_2_mo',
-  'y_3_mo',
-  'y_4_mo',
-  'y_6_mo',
-  'y_1_yr',
-  'y_2_yr',
-  'y_3_yr',
-  'y_5_yr',
-  'y_7_yr',
-  'y_10_yr',
-  'y_20_yr',
-  'y_30_yr',
-];
+const { and, asc, desc, eq, gte, lte, sql } = require('drizzle-orm');
+const { getDb } = require('./client');
+const {
+  TENOR_COLUMNS,
+  TENOR_COLUMN_TO_FIELD,
+  treasuryYields,
+} = require('./schema');
 
-const UPDATE_CLAUSE = TENOR_COLUMNS.map((c) => `${c} = VALUES(${c})`).join(', ');
+function toNumericStringOrNull(value) {
+  if (value === undefined || value === null || value === '') return null;
+  const num = Number(value);
+  return Number.isFinite(num) ? num.toFixed(2) : null;
+}
 
 function normalizeRow(row) {
-  const out = { rate_date: row.rate_date };
+  const out = {
+    rateDate: row.rate_date,
+  };
   for (const col of TENOR_COLUMNS) {
-    const value = row[col];
-    out[col] = value === undefined || value === null || value === '' ? null : Number(value);
+    out[TENOR_COLUMN_TO_FIELD[col]] = toNumericStringOrNull(row[col]);
   }
   return out;
 }
 
-function buildBatchUpsert(rows) {
-  const cols = ['rate_date', ...TENOR_COLUMNS];
-  const placeholders = rows.map(() => `(${cols.map(() => '?').join(', ')})`).join(', ');
-  const sql = `
-INSERT INTO treasury_yields (${cols.join(', ')})
-VALUES ${placeholders}
-ON DUPLICATE KEY UPDATE ${UPDATE_CLAUSE}
-`;
-  const values = [];
-  for (const row of rows) {
-    const n = normalizeRow(row);
-    values.push(n.rate_date, ...TENOR_COLUMNS.map((c) => n[c]));
+function conflictUpdateSet() {
+  const set = {
+    updatedAt: sql`CURRENT_TIMESTAMP`,
+  };
+  for (const col of TENOR_COLUMNS) {
+    set[TENOR_COLUMN_TO_FIELD[col]] = sql.raw(`excluded.${col}`);
   }
-  return { sql, values };
+  return set;
 }
 
-async function upsertYields(pool, rows, { batchSize = 200 } = {}) {
+async function upsertYields(rows, { batchSize = 200 } = {}) {
   if (!rows.length) {
     return { upserted: 0 };
   }
 
-  const conn = await pool.getConnection();
-  try {
-    await conn.beginTransaction();
+  const db = getDb();
+  const set = conflictUpdateSet();
+
+  await db.transaction(async (tx) => {
     for (let i = 0; i < rows.length; i += batchSize) {
-      const chunk = rows.slice(i, i + batchSize);
-      const { sql, values } = buildBatchUpsert(chunk);
-      await conn.query(sql, values);
+      const chunk = rows.slice(i, i + batchSize).map(normalizeRow);
+      await tx
+        .insert(treasuryYields)
+        .values(chunk)
+        .onConflictDoUpdate({
+          target: treasuryYields.rateDate,
+          set,
+        });
     }
-    await conn.commit();
-    return { upserted: rows.length };
-  } catch (err) {
-    await conn.rollback();
-    throw err;
-  } finally {
-    conn.release();
-  }
+  });
+
+  return { upserted: rows.length };
 }
 
-async function getLatestYield(pool) {
-  const [rows] = await pool.query(
-    `SELECT * FROM treasury_yields ORDER BY rate_date DESC LIMIT 1`
-  );
+async function getLatestYield() {
+  const db = getDb();
+  const rows = await db
+    .select()
+    .from(treasuryYields)
+    .orderBy(desc(treasuryYields.rateDate))
+    .limit(1);
   return rows[0] || null;
 }
 
-async function getYieldByDate(pool, rateDate) {
-  const [rows] = await pool.execute(
-    `SELECT * FROM treasury_yields WHERE rate_date = :rate_date LIMIT 1`,
-    { rate_date: rateDate }
-  );
+async function getYieldByDate(rateDate) {
+  const db = getDb();
+  const rows = await db
+    .select()
+    .from(treasuryYields)
+    .where(eq(treasuryYields.rateDate, rateDate))
+    .limit(1);
   return rows[0] || null;
 }
 
-async function getYieldsInRange(pool, from, to) {
-  const [rows] = await pool.execute(
-    `SELECT * FROM treasury_yields
-     WHERE rate_date >= :from_date AND rate_date <= :to_date
-     ORDER BY rate_date ASC`,
-    { from_date: from, to_date: to }
-  );
-  return rows;
+async function getYieldsInRange(from, to) {
+  const db = getDb();
+  return db
+    .select()
+    .from(treasuryYields)
+    .where(
+      and(gte(treasuryYields.rateDate, from), lte(treasuryYields.rateDate, to))
+    )
+    .orderBy(asc(treasuryYields.rateDate));
 }
 
+function asNumberOrNull(value) {
+  if (value === undefined || value === null || value === '') return null;
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
+}
+
+function formatDate(value) {
+  if (!value) return value;
+  if (typeof value === 'string') return value.slice(0, 10);
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  return String(value).slice(0, 10);
+}
+
+function formatTimestamp(value) {
+  if (!value) return value;
+  if (value instanceof Date) return value.toISOString();
+  return new Date(value).toISOString();
+}
+
+/** Preserve the public API JSON shape used by downstream consumers. */
 function toApiYield(row) {
   if (!row) return null;
   return {
-    date: row.rate_date,
+    date: formatDate(row.rateDate),
     yields: {
-      '1_mo': row.y_1_mo,
-      '1_5_mo': row.y_1_5_mo,
-      '2_mo': row.y_2_mo,
-      '3_mo': row.y_3_mo,
-      '4_mo': row.y_4_mo,
-      '6_mo': row.y_6_mo,
-      '1_yr': row.y_1_yr,
-      '2_yr': row.y_2_yr,
-      '3_yr': row.y_3_yr,
-      '5_yr': row.y_5_yr,
-      '7_yr': row.y_7_yr,
-      '10_yr': row.y_10_yr,
-      '20_yr': row.y_20_yr,
-      '30_yr': row.y_30_yr,
+      '1_mo': asNumberOrNull(row.y1Mo),
+      '1_5_mo': asNumberOrNull(row.y15Mo),
+      '2_mo': asNumberOrNull(row.y2Mo),
+      '3_mo': asNumberOrNull(row.y3Mo),
+      '4_mo': asNumberOrNull(row.y4Mo),
+      '6_mo': asNumberOrNull(row.y6Mo),
+      '1_yr': asNumberOrNull(row.y1Yr),
+      '2_yr': asNumberOrNull(row.y2Yr),
+      '3_yr': asNumberOrNull(row.y3Yr),
+      '5_yr': asNumberOrNull(row.y5Yr),
+      '7_yr': asNumberOrNull(row.y7Yr),
+      '10_yr': asNumberOrNull(row.y10Yr),
+      '20_yr': asNumberOrNull(row.y20Yr),
+      '30_yr': asNumberOrNull(row.y30Yr),
     },
-    updated_at: row.updated_at,
+    updated_at: formatTimestamp(row.updatedAt),
   };
 }
 

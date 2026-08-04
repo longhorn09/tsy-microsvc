@@ -6,7 +6,7 @@ require('dotenv').config({
   quiet: true,
 });
 
-const { getPool, closePool, upsertYields } = require('@tsy/db');
+const { initDb, closeDb, upsertYields } = require('@tsy/db');
 const { fetchXmlYears } = require('./treasury/fetch');
 const { filterByDateRange } = require('./treasury/parse');
 
@@ -29,6 +29,8 @@ function isoDateUTC(date) {
 }
 
 async function sync() {
+  initDb();
+
   const { days } = parseArgs(process.argv.slice(2));
   const to = new Date();
   const from = new Date(to);
@@ -43,9 +45,8 @@ async function sync() {
   const yearRows = await fetchXmlYears(startYear);
   const rows = filterByDateRange(yearRows, fromDate, toDate);
 
-  console.log(`Upserting ${rows.length} rows...`);
-  const pool = await getPool();
-  const { upserted } = await upsertYields(pool, rows);
+  console.log(`Upserting ${rows.length} rows into Neon Postgres...`);
+  const { upserted } = await upsertYields(rows);
   console.log(`Sync complete. Upserted ${upserted} rows.`);
 }
 
@@ -55,5 +56,5 @@ sync()
     process.exitCode = 1;
   })
   .finally(async () => {
-    await closePool();
+    await closeDb();
   });

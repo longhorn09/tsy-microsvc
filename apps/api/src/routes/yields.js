@@ -2,7 +2,6 @@
 
 const express = require('express');
 const {
-  getPool,
   getLatestYield,
   getYieldByDate,
   getYieldsInRange,
@@ -21,7 +20,7 @@ function isValidDate(value) {
 
 router.get('/latest', async (req, res, next) => {
   try {
-    const row = await getLatestYield(await getPool());
+    const row = await getLatestYield();
     if (!row) {
       return res.status(404).json({ error: 'No yield data found' });
     }
@@ -46,7 +45,7 @@ router.get('/', async (req, res, next) => {
       return res.status(400).json({ error: 'from must be <= to' });
     }
 
-    const rows = await getYieldsInRange(await getPool(), from, to);
+    const rows = await getYieldsInRange(from, to);
     return res.json({
       from,
       to,
@@ -65,7 +64,7 @@ router.get('/:date', async (req, res, next) => {
       return res.status(400).json({ error: 'date must be YYYY-MM-DD' });
     }
 
-    const row = await getYieldByDate(await getPool(), date);
+    const row = await getYieldByDate(date);
     if (!row) {
       return res.status(404).json({ error: `No yield data for ${date}` });
     }
