@@ -36,9 +36,11 @@ npm run ingest:sync -- --days 7
 npm start
 ```
 
+`/health` is public. `/v1/yields*` requires `Authorization: Bearer <API_SECRET>` (or `X-API-Key`). Set `API_SECRET` in `.env` (see `.env.example`; local dummy value is `testpw`).
+
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/health` | Liveness |
+| GET | `/health` | Liveness (unauthenticated) |
 | GET | `/v1/yields/latest` | Most recent trading day |
 | GET | `/v1/yields?from=YYYY-MM-DD&to=YYYY-MM-DD` | Date range |
 | GET | `/v1/yields/:date` | Single date |
@@ -138,7 +140,7 @@ gcloud run deploy tsy-api \
   --region REGION \
   --service-account tsy-api-runner@PROJECT_ID.iam.gserviceaccount.com \
   --allow-unauthenticated \
-  --set-env-vars "HOST=0.0.0.0" \
+  --set-env-vars "HOST=0.0.0.0,API_SECRET=testpw" \
   --set-secrets "DATABASE_URL=tsy-database-url:latest" \
   --cpu 1 \
   --memory 512Mi \
@@ -155,9 +157,11 @@ gcloud run services describe tsy-api --region REGION --format='value(status.url)
 
 curl -s "$(gcloud run services describe tsy-api --region REGION --format='value(status.url)')/health"
 
-curl -s "$(gcloud run services describe tsy-api --region REGION --format='value(status.url)')/v1/yields/latest"
+curl -s -H "Authorization: Bearer testpw" \
+  "$(gcloud run services describe tsy-api --region REGION --format='value(status.url)')/v1/yields/latest"
 
-curl -s "$(gcloud run services describe tsy-api --region REGION --format='value(status.url)')/v1/yields?from=2026-07-01&to=2026-07-31"
+curl -s -H "Authorization: Bearer testpw" \
+  "$(gcloud run services describe tsy-api --region REGION --format='value(status.url)')/v1/yields?from=2026-07-01&to=2026-07-31"
 ```
 
 Logs:

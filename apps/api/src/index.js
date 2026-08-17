@@ -8,6 +8,7 @@ require('dotenv').config({
 
 const express = require('express');
 const { initDb, closeDb } = require('@tsy/db');
+const requireAuth = require('./middleware/requireAuth');
 const yieldsRouter = require('./routes/yields');
 
 async function main() {
@@ -24,7 +25,7 @@ async function main() {
     res.json({ status: 'ok' });
   });
 
-  app.use('/v1/yields', yieldsRouter);
+  app.use('/v1/yields', requireAuth, yieldsRouter);
 
   app.use((err, _req, res, _next) => {
     console.error(err);
